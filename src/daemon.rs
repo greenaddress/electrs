@@ -1,9 +1,7 @@
 use base64;
-use bitcoin::blockdata::block::{Block, BlockHeader};
-use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::{deserialize, serialize};
-use bitcoin::network::constants::Network;
 use bitcoin::util::hash::BitcoinHash;
+use elements::{Block, BlockHeader, Transaction};
 use bitcoin::util::hash::Sha256dHash;
 use glob;
 use hex;
@@ -20,6 +18,15 @@ use signal::Waiter;
 use util::HeaderList;
 
 use errors::*;
+
+#[derive(Debug, Copy, Clone)]
+pub enum Network {
+    Bitcoin,
+    Testnet,
+    Regtest,
+    Liquid,
+    LiquidRegtest,
+}
 
 fn parse_hash(value: &Value) -> Result<Sha256dHash> {
     Ok(Sha256dHash::from_hex(
@@ -98,7 +105,6 @@ struct BlockchainInfo {
     headers: u32,
     bestblockhash: String,
     pruned: bool,
-    initialblockdownload: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -330,13 +336,7 @@ impl Daemon {
         if blockchain_info.pruned == true {
             bail!("pruned node is not supported (use '-prune=0' bitcoind flag)".to_owned())
         }
-        loop {
-            if daemon.getblockchaininfo()?.initialblockdownload == false {
-                break;
-            }
-            warn!("wait until bitcoind is synced (i.e. initialblockdownload = false)");
-            signal.wait(Duration::from_secs(3))?;
-        }
+
         Ok(daemon)
     }
 
@@ -366,7 +366,13 @@ impl Daemon {
     }
 
     pub fn magic(&self) -> u32 {
-        self.network.magic()
+        match self.network {
+            Network::Bitcoin => 0xD9B4BEF9,
+            Network::Testnet => 0x0709110B,
+            Network::Regtest => 0xDAB5BFFA,
+            Network::Liquid => 0xDBB5BFFA,
+            Network::LiquidRegtest => 0xDAB5BFFA,
+        }
     }
 
     fn call_jsonrpc(&self, method: &str, request: &Value) -> Result<Value> {
@@ -502,15 +508,9 @@ impl Daemon {
 
     pub fn gettransaction(
         &self,
-        txhash: &Sha256dHash,
-        blockhash: Option<Sha256dHash>,
+        txhash: &Sha256dHash
     ) -> Result<Transaction> {
-        let mut args = json!([txhash.be_hex_string(), /*verbose=*/ false]);
-        if let Some(blockhash) = blockhash {
-            args.as_array_mut()
-                .unwrap()
-                .push(json!(blockhash.be_hex_string()));
-        }
+        let  args = json!([txhash.be_hex_string(), /*verbose=*/ false]);
         tx_from_value(self.request("getrawtransaction", args)?)
     }
 
@@ -630,7 +630,7 @@ impl Daemon {
             let header = self
                 .getblockheader(&blockhash)
                 .chain_err(|| format!("failed to get {} header", blockhash))?;
-            new_headers.push(header);
+            new_headers.push(header.clone());
             blockhash = header.prev_blockhash;
         }
         trace!("downloaded {} block headers", new_headers.len());
