@@ -1,5 +1,5 @@
-use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::{deserialize, serialize};
+use elements::Transaction;
 use bitcoin::util::hash::Sha256dHash;
 use error_chain::ChainedError;
 use hex;
