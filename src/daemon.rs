@@ -1,11 +1,10 @@
 use base64;
-use bitcoin::blockdata::block::{Block, BlockHeader};
-use bitcoin::blockdata::transaction::Transaction;
+
 use bitcoin::consensus::encode::{deserialize, serialize};
-use bitcoin::network::constants::Network;
 use bitcoin::util::hash::BitcoinHash;
 use bitcoin_hashes::hex::{FromHex, ToHex};
 use bitcoin_hashes::sha256d::Hash as Sha256dHash;
+use elements::{Block, BlockHeader, Transaction};
 use glob;
 use hex;
 use serde_json::{from_str, from_value, Map, Value};
@@ -20,6 +19,15 @@ use crate::errors::*;
 use crate::metrics::{HistogramOpts, HistogramVec, Metrics};
 use crate::signal::Waiter;
 use crate::util::HeaderList;
+
+#[derive(Debug, Copy, Clone)]
+pub enum Network {
+    Bitcoin,
+    Testnet,
+    Regtest,
+    Liquid,
+    LiquidRegtest,
+}
 
 fn parse_hash(value: &Value) -> Result<Sha256dHash> {
     Ok(Sha256dHash::from_hex(
@@ -374,7 +382,13 @@ impl Daemon {
     }
 
     pub fn magic(&self) -> u32 {
-        self.network.magic()
+        match self.network {
+            Network::Bitcoin => 0xD9B4BEF9,
+            Network::Testnet => 0x0709110B,
+            Network::Regtest => 0xDAB5BFFA,
+            Network::Liquid => 0xDBB5BFFA,
+            Network::LiquidRegtest => 0xDAB5BFFA,
+        }
     }
 
     fn call_jsonrpc(&self, method: &str, request: &Value) -> Result<Value> {
@@ -636,7 +650,7 @@ impl Daemon {
             let header = self
                 .getblockheader(&blockhash)
                 .chain_err(|| format!("failed to get {} header", blockhash))?;
-            new_headers.push(header);
+            new_headers.push(header.clone());
             blockhash = header.prev_blockhash;
         }
         trace!("downloaded {} block headers", new_headers.len());
