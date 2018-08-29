@@ -1,8 +1,8 @@
-use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::deserialize;
 use bitcoin_hashes::hex::ToHex;
 use bitcoin_hashes::sha256d::Hash as Sha256dHash;
 use bitcoin_hashes::Hash;
+use elements::{confidential, Transaction};
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use lru::LruCache;
@@ -281,11 +281,16 @@ impl Query {
         let txn_id = t.txn.txid();
         for (index, output) in t.txn.output.iter().enumerate() {
             if compute_script_hash(&output.script_pubkey[..]) == script_hash {
+                let value = match output.value {
+                    confidential::Value::Explicit(val) => val,
+                    _ => 0,
+                };
+
                 result.push(FundingOutput {
                     txn_id,
                     height: t.height,
                     output_index: index,
-                    value: output.value,
+                    value: value,
                 })
             }
         }
