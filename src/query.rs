@@ -2,7 +2,7 @@ use bitcoin::consensus::encode::deserialize;
 use bitcoin_hashes::hex::ToHex;
 use bitcoin_hashes::sha256d::Hash as Sha256dHash;
 use bitcoin_hashes::Hash;
-use elements::{confidential, Transaction};
+use elements::{confidential, Transaction, Block};
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use lru::LruCache;
@@ -394,6 +394,13 @@ impl Query {
             .daemon()
             .gettransaction_raw(tx_hash, blockhash, verbose)
     }
+
+    pub fn get_block(&self, blockhash: &Sha256dHash) -> Result<Block> {
+        self.app
+            .daemon()
+            .getblock(blockhash)
+    }
+
 
     pub fn get_headers(&self, heights: &[usize]) -> Vec<HeaderEntry> {
         let index = self.app.index();
