@@ -191,7 +191,15 @@ impl Connection {
         Ok(json!(jsonify_header(&entry)))
     }
 
+    fn blockchain_block_get_from_height(&self, params: &[Value]) -> Result<Value> {
+        let height = usize_from_value(params.get(0), "missing height")?;
+        let entries = self.query.get_headers(&[height]);
 
+        let block = self.query.get_block(&entries.get(0).unwrap().hash());
+        let block_hex = hex::encode(serialize(&block.unwrap()));
+
+        Ok(json!({"hex": &block_hex}))
+    }
 
     fn blockchain_block_get(&self, params: &[Value]) -> Result<Value> {
         let block_hash = hash_from_value(params.get(0)).chain_err(|| "bad block_hash")?;
@@ -315,6 +323,7 @@ impl Connection {
             "blockchain.block.header" => self.blockchain_block_header(&params),
             "blockchain.block.headers" => self.blockchain_block_headers(&params),
             "blockchain.block.get_header" => self.blockchain_block_get_header(&params),
+            "blockchain.block.get_from_height" => self.blockchain_block_get_from_height(&params),
             "blockchain.block.get" => self.blockchain_block_get(&params),
             "blockchain.estimatefee" => self.blockchain_estimatefee(&params),
             "blockchain.headers.subscribe" => self.blockchain_headers_subscribe(),
