@@ -181,6 +181,27 @@ impl Connection {
         }))
     }
 
+    fn blockchain_block_get_header(&self, params: &[Value]) -> Result<Value> {
+        let height = usize_from_value(params.get(0), "missing height")?;
+        let mut entries = self.query.get_headers(&[height]);
+        let entry = entries
+            .pop()
+            .chain_err(|| format!("missing header #{}", height))?;
+        assert_eq!(entries.len(), 0);
+        Ok(json!(jsonify_header(&entry)))
+    }
+
+
+
+    fn blockchain_block_get(&self, params: &[Value]) -> Result<Value> {
+        let block_hash = hash_from_value(params.get(0)).chain_err(|| "bad block_hash")?;
+
+        let block = self.query.get_block(&block_hash);
+        let block_hex = hex::encode(serialize(&block.unwrap()));
+
+        Ok(json!({"hex": &block_hex}))
+    }
+
     fn blockchain_estimatefee(&self, params: &[Value]) -> Result<Value> {
         let blocks_count = usize_from_value(params.get(0), "blocks_count")?;
         let fee_rate = self.query.estimate_fee(blocks_count); // in BTC/kB
@@ -293,6 +314,8 @@ impl Connection {
         let result = match method {
             "blockchain.block.header" => self.blockchain_block_header(&params),
             "blockchain.block.headers" => self.blockchain_block_headers(&params),
+            "blockchain.block.get_header" => self.blockchain_block_get_header(&params),
+            "blockchain.block.get" => self.blockchain_block_get(&params),
             "blockchain.estimatefee" => self.blockchain_estimatefee(&params),
             "blockchain.headers.subscribe" => self.blockchain_headers_subscribe(),
             "blockchain.relayfee" => self.blockchain_relayfee(),
@@ -572,6 +595,16 @@ impl RPC {
     pub fn notify(&self) {
         self.notification.send(Notification::Periodic).unwrap();
     }
+}
+
+fn jsonify_header(entry: &HeaderEntry) -> Value {
+    let header = entry.header();
+    json!({
+            "block_height": entry.height(),
+            "version": header.version,
+            "prev_block_hash": header.prev_blockhash.be_hex_string(),
+            "timestamp": header.time,
+        })
 }
 
 impl Drop for RPC {
