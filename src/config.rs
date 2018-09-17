@@ -63,7 +63,7 @@ impl Config {
             .arg(
                 Arg::with_name("network")
                     .long("network")
-                    .help("Select Bitcoin network type ('mainnet', 'testnet' or 'regtest')")
+                    .help("Select Bitcoin network type ('mainnet', 'testnet', 'regtest', 'liquid', 'liquidregtest')")
                     .takes_value(true),
             )
             .arg(
