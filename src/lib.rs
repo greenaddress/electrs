@@ -18,6 +18,7 @@ extern crate stderrlog;
 extern crate sysconf;
 extern crate time;
 extern crate tiny_http;
+extern crate url;
 extern crate hyper;
 
 #[macro_use]
@@ -34,6 +35,8 @@ extern crate log;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
+
+
 
 pub mod app;
 pub mod bulk;
