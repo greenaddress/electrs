@@ -7,6 +7,7 @@ extern crate log;
 use error_chain::ChainedError;
 use std::process;
 use std::time::Duration;
+use electrs::rest;
 
 use electrs::{
     app::App,
@@ -55,6 +56,8 @@ fn run_server(config: &Config) -> Result<()> {
 
     let app = App::new(store, index, daemon)?;
     let query = Query::new(app.clone(), &metrics);
+
+    rest::run_server(&config, query.clone());
 
     let mut server = None; // Electrum RPC server
     loop {
