@@ -1,4 +1,3 @@
-use bitcoin::network::constants::Network;
 use clap::{App, Arg};
 use dirs::home_dir;
 use num_cpus;
@@ -11,6 +10,25 @@ use stderrlog;
 use daemon::CookieGetter;
 
 use errors::*;
+
+#[derive(Debug, Clone)]
+pub enum Network {
+    Bitcoin,
+    Testnet,
+    Regtest,
+    Signet,
+}
+impl Network {
+    pub fn magic(&self) -> u32 {
+        // Note: any new entries here must be added to `from_magic` above
+        match *self {
+            Network::Bitcoin => 0xD9B4BEF9,  // bef9 d9b4
+            Network::Testnet => 0x0709110B,
+            Network::Regtest => 0xDAB5BFFA,
+            Network::Signet  => 0x6A70C7F0,  // c7f0 6a70
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Config {
@@ -65,7 +83,7 @@ impl Config {
             .arg(
                 Arg::with_name("network")
                     .long("network")
-                    .help("Select Bitcoin network type ('mainnet', 'testnet' or 'regtest')")
+                    .help("Select Bitcoin network type ('mainnet', 'testnet', 'regtest' or 'signet')")
                     .takes_value(true),
             )
             .arg(
@@ -116,6 +134,7 @@ impl Config {
             "mainnet" => Network::Bitcoin,
             "testnet" => Network::Testnet,
             "regtest" => Network::Regtest,
+            "signet"  => Network::Signet,
             _ => panic!("unsupported Bitcoin network: {:?}", network_name),
         };
         let db_dir = Path::new(m.value_of("db_dir").unwrap_or("./db"));
@@ -125,16 +144,20 @@ impl Config {
             Network::Bitcoin => 8332,
             Network::Testnet => 18332,
             Network::Regtest => 18443,
+            Network::Signet => 18443,
+
         };
         let default_electrum_port = match network_type {
             Network::Bitcoin => 50001,
             Network::Testnet => 60001,
             Network::Regtest => 60401,
+            Network::Signet => 60401,
         };
         let default_monitoring_port = match network_type {
             Network::Bitcoin => 4224,
             Network::Testnet => 14224,
             Network::Regtest => 24224,
+            Network::Signet => 24224,
         };
 
         let daemon_rpc_addr: SocketAddr = m
@@ -165,6 +188,7 @@ impl Config {
             Network::Bitcoin => (),
             Network::Testnet => daemon_dir.push("testnet3"),
             Network::Regtest => daemon_dir.push("regtest"),
+            Network::Signet => daemon_dir.push("signet"),
         }
         let cookie = m.value_of("cookie").map(|s| s.to_owned());
 

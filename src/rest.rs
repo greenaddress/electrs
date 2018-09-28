@@ -2,7 +2,7 @@ use bitcoin::util::hash::{Sha256dHash,HexError};
 use bitcoin::network::serialize::{serialize,deserialize};
 use bitcoin::{Script,network,BitcoinHash};
 use config::Config;
-use bitcoin::{Block,TxIn,TxOut,OutPoint,Transaction};
+use bitcoin::{TxIn,TxOut,OutPoint,Transaction};
 use errors;
 use hex::{self, FromHexError};
 use hyper::{Body, Response, Server, Method,Request};
@@ -19,6 +19,7 @@ use std::thread;
 use std::sync::{Arc,Mutex};
 use url::form_urlencoded;
 use util::HeaderEntry;
+use block::SignetBlock;
 
 #[derive(Serialize, Deserialize)]
 struct BlockValue {
@@ -32,8 +33,8 @@ struct BlockValue {
     previousblockhash: String,
 }
 
-impl From<Block> for BlockValue {
-    fn from(block: Block) -> Self {
+impl From<SignetBlock> for BlockValue {
+    fn from(block: SignetBlock) -> Self {
         let weight : u64 = block.txdata.iter().fold(0, |sum, val| sum + val.get_weight());
         let serialized_block = serialize(&block).unwrap();
         BlockValue {
@@ -56,8 +57,8 @@ struct BlockAndTxsValue {
 
 }
 
-impl From<Block> for BlockAndTxsValue {
-    fn from(block: Block) -> Self {
+impl From<SignetBlock> for BlockAndTxsValue {
+    fn from(block: SignetBlock) -> Self {
         let txs = block.txdata.iter().map(|el| TransactionValue::from(el.clone())).collect();
         let block_value = BlockValue::from(block);
 
@@ -196,7 +197,7 @@ pub fn run_server(_config: &Config, query: Arc<Query>) {
     });
 }
 
-fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruCache<Sha256dHash, Block>>>) -> Result<Response<Body>, StringError> {
+fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruCache<Sha256dHash, SignetBlock>>>) -> Result<Response<Body>, StringError> {
     // TODO it looks hyper does not have routing and query parsing :(
     let uri = req.uri();
     let path: Vec<&str> = uri.path().split('/').skip(1).collect();
@@ -308,7 +309,7 @@ fn json_response<T: Serialize>(value : T) -> Result<Response<Body>,StringError> 
         .body(Body::from(value)).unwrap())
 }
 
-fn blocks(query: &Arc<Query>, from_header: Option<&HeaderEntry>, limit: u32, block_cache : &Mutex<LruCache<Sha256dHash,Block>>)
+fn blocks(query: &Arc<Query>, from_header: Option<&HeaderEntry>, limit: u32, block_cache : &Mutex<LruCache<Sha256dHash,SignetBlock>>)
     -> Result<Response<Body>,StringError> {
     let best_header  = query.get_best_header()?;
     let mut values = Vec::new();
@@ -318,7 +319,7 @@ fn blocks(query: &Arc<Query>, from_header: Option<&HeaderEntry>, limit: u32, blo
     };
     let zero = [0u8;32];
     for _ in 0..limit {
-        let block : Block = query.get_block_with_cache(&current_hash, block_cache)?;
+        let block : SignetBlock = query.get_block_with_cache(&current_hash, block_cache)?;
         current_hash = block.header.prev_blockhash.clone();
         let block_value = full_block_value_from_block(block, query)?;
         values.push(block_value);
@@ -329,7 +330,7 @@ fn blocks(query: &Arc<Query>, from_header: Option<&HeaderEntry>, limit: u32, blo
     json_response(values)
 }
 
-fn full_block_value_from_block(block: Block, query: &Query) -> Result<BlockValue,StringError> {
+fn full_block_value_from_block(block: SignetBlock, query: &Query) -> Result<BlockValue,StringError> {
     let best_header  = query.get_best_header()?;
     let block_header = query.get_header_by_hash(&block.header.bitcoin_hash())?;
     let mut block_value = BlockValue::from(block);

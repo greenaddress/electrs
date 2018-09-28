@@ -1,4 +1,3 @@
-use bitcoin::blockdata::block::Block;
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::network::serialize::deserialize;
 use bitcoin::util::hash::Sha256dHash;
@@ -19,6 +18,7 @@ use lru_cache::LruCache;
 use std::sync::Mutex;
 
 use errors::*;
+use block::SignetBlock;
 
 pub struct FundingOutput {
     pub txn_id: Sha256dHash,
@@ -357,7 +357,7 @@ impl Query {
             .gettransaction_raw(tx_hash, blockhash, verbose)
     }
 
-    pub fn get_block_with_cache(&self, blockhash: &Sha256dHash, block_cache : &Mutex<LruCache<Sha256dHash,Block>> ) -> Result<Block> {
+    pub fn get_block_with_cache(&self, blockhash: &Sha256dHash, block_cache : &Mutex<LruCache<Sha256dHash,SignetBlock>> ) -> Result<SignetBlock> {
         let mut cache = block_cache.lock().unwrap();
         let block = match cache.get_mut(blockhash) {
             Some(value) => {
@@ -372,7 +372,7 @@ impl Query {
         cache.insert(blockhash.clone(), block.clone());
         Ok(block)
     }
-    pub fn get_block(&self, blockhash: &Sha256dHash) -> Result<Block> {
+    pub fn get_block(&self, blockhash: &Sha256dHash) -> Result<SignetBlock> {
         self.app
             .daemon()
             .getblock(blockhash)
@@ -406,7 +406,7 @@ impl Query {
             .index()
             .get_header(height)
             .chain_err(|| format!("missing block #{}", height))?;
-        let block: Block = self.app.daemon().getblock(&header_entry.hash())?;
+        let block: SignetBlock = self.app.daemon().getblock(&header_entry.hash())?;
         let mut txids: Vec<Sha256dHash> = block.txdata.iter().map(|tx| tx.txid()).collect();
         let pos = txids
             .iter()

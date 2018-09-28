@@ -54,3 +54,4 @@ pub mod signal;
 pub mod store;
 pub mod util;
 pub mod rest;
+pub mod block;
