@@ -1,5 +1,4 @@
 use bincode;
-use bitcoin::blockdata::block::{Block, BlockHeader};
 use bitcoin::blockdata::transaction::{Transaction, TxIn, TxOut};
 use bitcoin::network::serialize::BitcoinHash;
 use bitcoin::network::serialize::{deserialize, serialize};
@@ -20,6 +19,8 @@ use util::{
 };
 
 use errors::*;
+use block::SignetBlock;
+use block::SignetBlockHeader;
 
 #[derive(Serialize, Deserialize)]
 pub struct TxInKey {
@@ -183,7 +184,7 @@ pub fn index_transaction(txn: &Transaction, height: usize, rows: &mut Vec<Row>) 
     rows.push(TxRow::new(&txid, height as u32).to_row());
 }
 
-pub fn index_block(block: &Block, height: usize) -> Vec<Row> {
+pub fn index_block(block: &SignetBlock, height: usize) -> Vec<Row> {
     let mut rows = vec![];
     for txn in &block.txdata {
         index_transaction(&txn, height, &mut rows);
@@ -226,7 +227,7 @@ fn read_indexed_headers(store: &ReadStore) -> HeaderList {
     let mut map = HeaderMap::new();
     for row in store.scan(b"B") {
         let key: BlockKey = bincode::deserialize(&row.key).unwrap();
-        let header: BlockHeader = deserialize(&row.value).unwrap();
+        let header: SignetBlockHeader = deserialize(&row.value).unwrap();
         map.insert(deserialize(&key.hash).unwrap(), header);
     }
     let mut headers = vec![];
@@ -285,7 +286,7 @@ impl Stats {
         }
     }
 
-    fn update(&self, block: &Block, height: usize) {
+    fn update(&self, block: &SignetBlock, height: usize) {
         self.blocks.inc();
         self.txns.inc_by(block.txdata.len() as i64);
         for tx in &block.txdata {

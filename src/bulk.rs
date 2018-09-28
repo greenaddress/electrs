@@ -1,4 +1,3 @@
-use bitcoin::blockdata::block::Block;
 use bitcoin::network::serialize::BitcoinHash;
 use bitcoin::network::serialize::SimpleDecoder;
 use bitcoin::network::serialize::{deserialize, RawDecoder};
@@ -21,6 +20,7 @@ use store::{DBStore, Row, WriteStore};
 use util::{spawn_thread, HeaderList, SyncChannel};
 
 use errors::*;
+use block::SignetBlock;
 
 struct Parser {
     magic: u32,
@@ -80,13 +80,16 @@ impl Parser {
 
     fn index_blkfile(&self, blob: Vec<u8>) -> Result<Vec<Row>> {
         let timer = self.duration.with_label_values(&["parse"]).start_timer();
+        info!("block size {}", blob.len());
         let blocks = parse_blocks(blob, self.magic)?;
+        info!("parsed block {}", blocks.len());
         timer.observe_duration();
 
         let mut rows = Vec::<Row>::new();
         let timer = self.duration.with_label_values(&["index"]).start_timer();
-        for block in blocks {
+        for (i,block) in blocks.iter().enumerate() {
             let blockhash = block.bitcoin_hash();
+            debug!("{} {}", i, blockhash);
             if let Some(header) = self.current_headers.header_by_blockhash(&blockhash) {
                 if self
                     .indexed_blockhashes
@@ -101,6 +104,7 @@ impl Parser {
                 }
             } else {
                 // will be indexed later (after bulk load is over) if not an orphan block
+                info!("no");
                 self.block_count.with_label_values(&["skipped"]).inc();
             }
         }
@@ -113,7 +117,7 @@ impl Parser {
     }
 }
 
-fn parse_blocks(blob: Vec<u8>, magic: u32) -> Result<Vec<Block>> {
+fn parse_blocks(blob: Vec<u8>, magic: u32) -> Result<Vec<SignetBlock>> {
     let mut cursor = Cursor::new(&blob);
     let mut blocks = vec![];
     let max_pos = blob.len() as u64;
@@ -140,7 +144,7 @@ fn parse_blocks(blob: Vec<u8>, magic: u32) -> Result<Vec<Block>> {
             .chain_err(|| format!("seek {} failed", block_size))?;
         let end = cursor.position() as usize;
 
-        let block: Block = deserialize(&blob[start..end])
+        let block: SignetBlock = deserialize(&blob[start..end])
             .chain_err(|| format!("failed to parse block at {}..{}", start, end))?;
         blocks.push(block);
     }
@@ -151,6 +155,7 @@ fn load_headers(daemon: &Daemon) -> Result<HeaderList> {
     let tip = daemon.getbestblockhash()?;
     let mut headers = HeaderList::empty();
     let new_headers = headers.order(daemon.get_new_headers(&headers, &tip)?);
+    info!("headers# {}", new_headers.len());
     headers.apply(new_headers);
     Ok(headers)
 }
