@@ -1,7 +1,6 @@
 use base64;
-use bitcoin::blockdata::block::{Block, BlockHeader};
 use bitcoin::blockdata::transaction::Transaction;
-use bitcoin::network::constants::Network;
+use config::Network;
 use bitcoin::network::serialize::BitcoinHash;
 use bitcoin::network::serialize::{deserialize, serialize};
 use bitcoin::util::hash::Sha256dHash;
@@ -20,6 +19,7 @@ use signal::Waiter;
 use util::HeaderList;
 
 use errors::*;
+use block::{SignetBlockHeader, SignetBlock};
 
 fn parse_hash(value: &Value) -> Result<Sha256dHash> {
     Ok(Sha256dHash::from_hex(
@@ -29,7 +29,7 @@ fn parse_hash(value: &Value) -> Result<Sha256dHash> {
     ).chain_err(|| format!("non-hex value: {}", value))?)
 }
 
-fn header_from_value(value: Value) -> Result<BlockHeader> {
+fn header_from_value(value: Value) -> Result<SignetBlockHeader> {
     let header_hex = value
         .as_str()
         .chain_err(|| format!("non-string header: {}", value))?;
@@ -40,7 +40,7 @@ fn header_from_value(value: Value) -> Result<BlockHeader> {
     )
 }
 
-fn block_from_value(value: Value) -> Result<Block> {
+fn block_from_value(value: Value) -> Result<SignetBlock> {
     let block_hex = value.as_str().chain_err(|| "non-string block")?;
     let block_bytes = hex::decode(block_hex).chain_err(|| "non-hex block")?;
     Ok(deserialize(&block_bytes).chain_err(|| format!("failed to parse block {}", block_hex))?)
@@ -343,7 +343,7 @@ impl Daemon {
     pub fn reconnect(&self) -> Result<Daemon> {
         Ok(Daemon {
             daemon_dir: self.daemon_dir.clone(),
-            network: self.network,
+            network: self.network.clone(),
             conn: Mutex::new(self.conn.lock().unwrap().reconnect()?),
             message_id: Counter::new(),
             signal: self.signal.clone(),
@@ -444,14 +444,14 @@ impl Daemon {
         parse_hash(&self.request("getbestblockhash", json!([]))?).chain_err(|| "invalid blockhash")
     }
 
-    pub fn getblockheader(&self, blockhash: &Sha256dHash) -> Result<BlockHeader> {
+    pub fn getblockheader(&self, blockhash: &Sha256dHash) -> Result<SignetBlockHeader> {
         header_from_value(self.request(
             "getblockheader",
             json!([blockhash.be_hex_string(), /*verbose=*/ false]),
         )?)
     }
 
-    pub fn getblockheaders(&self, heights: &[usize]) -> Result<Vec<BlockHeader>> {
+    pub fn getblockheaders(&self, heights: &[usize]) -> Result<Vec<SignetBlockHeader>> {
         let heights: Vec<Value> = heights.iter().map(|height| json!([height])).collect();
         let params_list: Vec<Value> = self
             .requests("getblockhash", &heights)?
@@ -465,7 +465,7 @@ impl Daemon {
         Ok(result)
     }
 
-    pub fn getblock(&self, blockhash: &Sha256dHash) -> Result<Block> {
+    pub fn getblock(&self, blockhash: &Sha256dHash) -> Result<SignetBlock> {
         let block = block_from_value(self.request(
             "getblock",
             json!([blockhash.be_hex_string(), /*verbose=*/ false]),
@@ -474,7 +474,7 @@ impl Daemon {
         Ok(block)
     }
 
-    pub fn getblocks(&self, blockhashes: &[Sha256dHash]) -> Result<Vec<Block>> {
+    pub fn getblocks(&self, blockhashes: &[Sha256dHash]) -> Result<Vec<SignetBlock>> {
         let params_list: Vec<Value> = blockhashes
             .iter()
             .map(|hash| json!([hash.be_hex_string(), /*verbose=*/ false]))
@@ -565,7 +565,7 @@ impl Daemon {
         )
     }
 
-    fn get_all_headers(&self, tip: &Sha256dHash) -> Result<Vec<BlockHeader>> {
+    fn get_all_headers(&self, tip: &Sha256dHash) -> Result<Vec<SignetBlockHeader>> {
         let info: Value = self.request("getblockheader", json!([tip.be_hex_string()]))?;
         let tip_height = info
             .get("height")
@@ -597,7 +597,7 @@ impl Daemon {
         &self,
         indexed_headers: &HeaderList,
         bestblockhash: &Sha256dHash,
-    ) -> Result<Vec<BlockHeader>> {
+    ) -> Result<Vec<SignetBlockHeader>> {
         // Iterate back over headers until known blockash is found:
         if indexed_headers.len() == 0 {
             return self.get_all_headers(bestblockhash);

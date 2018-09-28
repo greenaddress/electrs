@@ -1,4 +1,3 @@
-use bitcoin::blockdata::block::BlockHeader;
 use bitcoin::network::serialize::BitcoinHash;
 use bitcoin::util::hash::Sha256dHash;
 use std::collections::HashMap;
@@ -8,9 +7,10 @@ use std::slice;
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 use std::thread;
 use time;
+use block::SignetBlockHeader;
 
 pub type Bytes = Vec<u8>;
-pub type HeaderMap = HashMap<Sha256dHash, BlockHeader>;
+pub type HeaderMap = HashMap<Sha256dHash, SignetBlockHeader>;
 
 // TODO: consolidate serialization/deserialize code for bincode/bitcoin.
 const HASH_LEN: usize = 32;
@@ -31,7 +31,7 @@ pub fn full_hash(hash: &[u8]) -> FullHash {
 pub struct HeaderEntry {
     height: usize,
     hash: Sha256dHash,
-    header: BlockHeader,
+    header: SignetBlockHeader,
 }
 
 impl HeaderEntry {
@@ -39,7 +39,7 @@ impl HeaderEntry {
         &self.hash
     }
 
-    pub fn header(&self) -> &BlockHeader {
+    pub fn header(&self) -> &SignetBlockHeader {
         &self.header
     }
 
@@ -78,11 +78,11 @@ impl HeaderList {
         }
     }
 
-    pub fn order(&self, new_headers: Vec<BlockHeader>) -> Vec<HeaderEntry> {
+    pub fn order(&self, new_headers: Vec<SignetBlockHeader>) -> Vec<HeaderEntry> {
         // header[i] -> header[i-1] (i.e. header.last() is the tip)
         struct HashedHeader {
             blockhash: Sha256dHash,
-            header: BlockHeader,
+            header: SignetBlockHeader,
         }
         let hashed_headers =
             Vec::<HashedHeader>::from_iter(new_headers.into_iter().map(|header| HashedHeader {
@@ -158,8 +158,10 @@ impl HeaderList {
         let height = self.heights.get(blockhash)?;
         let header = self.headers.get(*height)?;
         if *blockhash == *header.hash() {
+            info!("Some {:?}", header);
             Some(header)
         } else {
+            info!("None");
             None
         }
     }
