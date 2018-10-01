@@ -1,7 +1,7 @@
 use bitcoin::util::hash::{Sha256dHash,HexError};
 use bitcoin::network::serialize::{serialize,deserialize};
 use bitcoin::{Script,network,BitcoinHash};
-use config::Config;
+use config::{Config,Network};
 use bitcoin::{TxIn,TxOut,OutPoint,Transaction};
 use errors;
 use hex::{self, FromHexError};
@@ -18,8 +18,8 @@ use std::num::ParseIntError;
 use std::thread;
 use std::sync::{Arc,Mutex};
 use url::form_urlencoded;
-use util::HeaderEntry;
 use block::SignetBlock;
+use util::{HeaderEntry,script_to_address};
 
 #[derive(Serialize, Deserialize)]
 struct BlockValue {
@@ -128,6 +128,7 @@ struct TxOutValue {
     scriptpubkey_hex: Script,
     scriptpubkey_asm: String,
     value: u64,
+    scriptpubkey_address: Option<String>,
     scriptpubkey_type: String,
 }
 
@@ -160,25 +161,43 @@ impl From<TxOut> for TxOutValue {
         TxOutValue {
             scriptpubkey_hex: script,
             scriptpubkey_asm: (&script_asm[7..script_asm.len()-1]).to_string(),
+            scriptpubkey_address: None, // added later
             value,
             scriptpubkey_type: script_type.to_string(),
         }
     }
 }
 
-pub fn run_server(_config: &Config, query: Arc<Query>) {
+// @XXX we should ideally set the scriptpubkey_address inside TxOutValue::from(), but it
+// cannot easily access the Network, so for now, we attach it later with mutation instead
+
+fn attach_addresses_tx(tx: &mut TransactionValue, network: &Network) {
+    for mut vout in tx.vout.iter_mut() {
+        vout.scriptpubkey_address = script_to_address(&vout.scriptpubkey_hex, &network);
+    }
+}
+
+fn attach_addresses_txs(txs: &mut Vec<TransactionValue>, network: &Network) {
+    for mut tx in txs.iter_mut() {
+        attach_addresses_tx(&mut tx, &network);
+    }
+}
+
+pub fn run_server(config: &Config, query: Arc<Query>) {
     let addr = ([127, 0, 0, 1], 3000).into();  // TODO take from config
     info!("REST server running on {}", addr);
 
     let cache = Arc::new(Mutex::new(LruCache::new(100)));
 
+    let network = config.network_type;
+
     let new_service = move || {
 
         let query = query.clone();
         let cache = cache.clone();
-        
+
         service_fn_ok(move |req: Request<Body>| {
-            match handle_request(req,&query,&cache) {
+            match handle_request(req,&query,&cache,&network) {
                 Ok(response) => response,
                 Err(e) => {
                     warn!("{:?}",e);
@@ -197,7 +216,7 @@ pub fn run_server(_config: &Config, query: Arc<Query>) {
     });
 }
 
-fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruCache<Sha256dHash, SignetBlock>>>) -> Result<Response<Body>, StringError> {
+fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruCache<Sha256dHash, SignetBlock>>>, network: &Network) -> Result<Response<Body>, StringError> {
     // TODO it looks hyper does not have routing and query parsing :(
     let uri = req.uri();
     let path: Vec<&str> = uri.path().split('/').skip(1).collect();
@@ -249,6 +268,7 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
                         tx_value.confirmations = value.block_summary.confirmations;
                         tx_value.block_hash = Some(value.block_summary.id.clone());
                     }
+                    attach_addresses_txs(&mut value.txs, &network);
                     json_response(value)
                 }
             }
@@ -269,6 +289,7 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
                 tx_value.confirmations = value.block_summary.confirmations;
                 tx_value.block_hash = Some(value.block_summary.id.clone());
             }
+            attach_addresses_txs(&mut value.txs, &network);
             json_response(value)
         },
         (&Method::GET, Some(&"tx"), Some(hash), None) => {
@@ -288,6 +309,7 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
             value.confirmations = Some(confirmations as u32);
             value.hex = Some(tx_hex.to_string());
             value.block_hash = Some(blockhash.to_string());
+            attach_addresses_tx(&mut value, &network);
             json_response(value)
         },
         _ => {
