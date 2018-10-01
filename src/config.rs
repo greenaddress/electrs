@@ -11,7 +11,7 @@ use daemon::CookieGetter;
 
 use errors::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Network {
     Bitcoin,
     Testnet,
