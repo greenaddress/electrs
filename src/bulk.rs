@@ -80,16 +80,15 @@ impl Parser {
 
     fn index_blkfile(&self, blob: Vec<u8>) -> Result<Vec<Row>> {
         let timer = self.duration.with_label_values(&["parse"]).start_timer();
-        info!("block size {}", blob.len());
+        info!("Block dat file size {}", blob.len());
         let blocks = parse_blocks(blob, self.magic)?;
-        info!("parsed block {}", blocks.len());
+        info!("Parsed blocks {}", blocks.len());
         timer.observe_duration();
 
         let mut rows = Vec::<Row>::new();
         let timer = self.duration.with_label_values(&["index"]).start_timer();
-        for (i,block) in blocks.iter().enumerate() {
+        for block in blocks.iter() {
             let blockhash = block.bitcoin_hash();
-            debug!("{} {}", i, blockhash);
             if let Some(header) = self.current_headers.header_by_blockhash(&blockhash) {
                 if self
                     .indexed_blockhashes
@@ -104,7 +103,6 @@ impl Parser {
                 }
             } else {
                 // will be indexed later (after bulk load is over) if not an orphan block
-                info!("no");
                 self.block_count.with_label_values(&["skipped"]).inc();
             }
         }
@@ -210,7 +208,6 @@ fn start_indexer(
                     .send((rows, path))
                     .expect("failed to send indexed rows")
             } else {
-                debug!("no more blocks to index");
                 break;
             }
         }
