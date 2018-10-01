@@ -158,10 +158,8 @@ impl HeaderList {
         let height = self.heights.get(blockhash)?;
         let header = self.headers.get(*height)?;
         if *blockhash == *header.hash() {
-            info!("Some {:?}", header);
             Some(header)
         } else {
-            info!("None");
             None
         }
     }
