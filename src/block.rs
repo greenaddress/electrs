@@ -1,7 +1,6 @@
 use bitcoin::util::hash::Sha256dHash;
 use bitcoin::Transaction;
 use bitcoin::BitcoinHash;
-use bitcoin::network::serialize::serialize;
 use bitcoin::network::encodable::{ConsensusEncodable, ConsensusDecodable};
 use bitcoin::network::serialize::{SimpleEncoder, SimpleDecoder};
 use bitcoin::network::serialize::Error;
@@ -37,7 +36,6 @@ pub struct SignetBlock {
     pub txdata: Vec<Transaction>
 }
 
-
 impl BitcoinHash for SignetBlockHeader {
     fn bitcoin_hash(&self) -> Sha256dHash {
         // Everything except signature goes into the hash
@@ -52,10 +50,9 @@ impl BitcoinHash for SignetBlockHeader {
     }
 }
 
-
 impl BitcoinHash for SignetBlock {
     fn bitcoin_hash(&self) -> Sha256dHash {
-        Sha256dHash::from_data(&serialize(&self.header).unwrap())
+        self.header.bitcoin_hash()
     }
 }
 
