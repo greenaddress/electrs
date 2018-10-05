@@ -354,11 +354,12 @@ impl Query {
         self.app.daemon().gettransaction(tx_hash, blockhash)
     }
 
+    // Read from rawtx index, fallback to reading from bitcoind rpc
     pub fn txindex_load_txn(&self, txid: &Sha256dHash) -> Result<Transaction> {
-        self.tx_cache.get_or_else(txid, || {
-            let row = rawtxrow_by_txid(self.app.read_store(), txid).unwrap();
-            Ok(deserialize(&row.rawtx).or(Err("cannot parse tx"))?)
-        })
+        match rawtxrow_by_txid(self.app.read_store(), txid) {
+            Some(row) => Ok(deserialize(&row.rawtx).chain_err(|| "cannot parse tx")?),
+            None => self.app.daemon().gettransaction(txid, self.lookup_confirmed_blockhash(txid, None)?)
+        }
     }
 
     // Public API for transaction retrieval (for Electrum RPC)
