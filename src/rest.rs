@@ -272,8 +272,8 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
                 .map_or(0u32, |el| el.parse().unwrap_or(0))
                 .max(0u32) as usize).min(block.txdata.len());
             let limit = query_params.get("limit")
-                .map_or(10u32,|el| el.parse().unwrap_or(10u32) )
-                .min(50u32) as usize;
+                .map_or(50000u32,|el| el.parse().unwrap_or(50000u32) )
+                .min(50000u32) as usize;
             let end = (start+limit).min(block.txdata.len());
             let block = Block { header: block.header, txdata: block.txdata[start..end].to_vec() };
 
