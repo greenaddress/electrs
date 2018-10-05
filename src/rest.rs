@@ -171,10 +171,16 @@ impl From<TxOut> for TxOutValue {
 fn attach_tx_data(tx: &mut TransactionValue, network: &Network, txs: &HashMap<Sha256dHash,Transaction>) {
     for mut vin in tx.vin.iter_mut() {
         if !vin.is_coinbase {
-            let prevtx = txs.get(&vin.outpoint.txid).unwrap();
-            let mut prevout = TxOutValue::from(prevtx.output[vin.outpoint.vout as usize].clone());
-            prevout.scriptpubkey_address = script_to_address(&prevout.scriptpubkey_hex, &network);
-            vin.prevout = Some(prevout);
+            match txs.get(&vin.outpoint.txid) {
+                Some(prevtx) => {
+                    let mut prevout = TxOutValue::from(prevtx.output[vin.outpoint.vout as usize].clone());
+                    prevout.scriptpubkey_address = script_to_address(&prevout.scriptpubkey_hex, &network);
+                    vin.prevout = Some(prevout);
+                },
+                None => {
+                    info!("can't find {}", &vin.outpoint.txid)   ;
+                }
+            }
         }
     }
 
