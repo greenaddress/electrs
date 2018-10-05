@@ -187,7 +187,9 @@ fn attach_txs_data(txs: &mut Vec<TransactionValue>, network: &Network, query: &A
     let mut tx_hashes = Vec::new();
     for tx in txs.iter() {
         for vin in tx.vin.iter() {
-            tx_hashes.push(vin.outpoint.txid.clone());
+            if !vin.is_coinbase {
+                tx_hashes.push(vin.outpoint.txid.clone());
+            }
         }
     }
     tx_hashes.sort();   // querying keys in order leverage memory locality from empirical test up to 2 or 3 times faster
