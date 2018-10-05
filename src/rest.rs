@@ -168,10 +168,10 @@ impl From<TxOut> for TxOutValue {
 // @XXX we should ideally set the scriptpubkey_address inside TxOutValue::from(), but it
 // cannot easily access the Network, so for now, we attach it later with mutation instead
 
-fn attach_tx_data(tx: &mut TransactionValue, network: &Network, query: &Arc<Query>) {
+fn attach_tx_data(tx: &mut TransactionValue, network: &Network, txs: &HashMap<Sha256dHash,Transaction>) {
     for mut vin in tx.vin.iter_mut() {
         if !vin.is_coinbase {
-            let prevtx = query.txindex_load_txn(&vin.outpoint.txid).unwrap();
+            let prevtx = txs.get(&vin.outpoint.txid).unwrap();
             let mut prevout = TxOutValue::from(prevtx.output[vin.outpoint.vout as usize].clone());
             prevout.scriptpubkey_address = script_to_address(&prevout.scriptpubkey_hex, &network);
             vin.prevout = Some(prevout);
@@ -184,8 +184,21 @@ fn attach_tx_data(tx: &mut TransactionValue, network: &Network, query: &Arc<Quer
 }
 
 fn attach_txs_data(txs: &mut Vec<TransactionValue>, network: &Network, query: &Arc<Query>) {
+    let mut tx_hashes = Vec::new();
+    for tx in txs.iter() {
+        for vin in tx.vin.iter() {
+            tx_hashes.push(vin.outpoint.txid.clone());
+        }
+    }
+    tx_hashes.sort();   // querying keys in order leverage memory locality from empirical test up to 2 or 3 times faster
+    tx_hashes.dedup();  // we don't want to ask same tx twice
+    let mut txs_map = HashMap::new();
+    for tx_hash in tx_hashes {
+        txs_map.insert(tx_hash,  query.txindex_load_txn(&tx_hash).unwrap());
+    }
+
     for mut tx in txs.iter_mut() {
-        attach_tx_data(&mut tx, &network, &query);
+        attach_tx_data(&mut tx, &network, &txs_map);
     }
 }
 
@@ -283,8 +296,11 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
         },
         (&Method::GET, Some(&"tx"), Some(hash), None) => {
             let hash = Sha256dHash::from_hex(hash)?;
-            let mut value = TransactionValue::from(query.txindex_load_txn(&hash)?);
-            attach_tx_data(&mut value, &network, &query);
+            let transaction = query.txindex_load_txn(&hash)?;
+            let mut value = TransactionValue::from(transaction.clone());
+            let mut map = HashMap::new();
+            map.insert(hash, transaction);
+            attach_tx_data(&mut value, &network, &map);
             json_response(value)
         },
         _ => {

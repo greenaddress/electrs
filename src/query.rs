@@ -358,7 +358,10 @@ impl Query {
     pub fn txindex_load_txn(&self, txid: &Sha256dHash) -> Result<Transaction> {
         match rawtxrow_by_txid(self.app.read_store(), txid) {
             Some(row) => Ok(deserialize(&row.rawtx).chain_err(|| "cannot parse tx")?),
-            None => self.app.daemon().gettransaction(txid, self.lookup_confirmed_blockhash(txid, None)?)
+            None => {
+                debug!("miss tx in db, asking node");
+                self.app.daemon().gettransaction(txid, self.lookup_confirmed_blockhash(txid, None)?)
+            }
         }
     }
 
