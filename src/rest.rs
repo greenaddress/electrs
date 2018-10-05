@@ -74,8 +74,7 @@ struct TransactionValue {
     txid: Sha256dHash,
     vin: Vec<TxInValue>,
     vout: Vec<TxOutValue>,
-    confirmations: Option<u32>,
-    hex: Option<String>,
+    hex: String,
     block_hash: Option<String>,
     size: u32,
     weight: u32,
@@ -91,10 +90,9 @@ impl From<Transaction> for TransactionValue {
             txid: tx.txid(),
             vin,
             vout,
-            confirmations: None,
-            hex: None,
             block_hash: None,
             size: bytes.len() as u32,
+            hex: hex::encode(bytes),
             weight: tx.get_weight() as u32,
         }
     }
@@ -175,8 +173,8 @@ impl From<TxOut> for TxOutValue {
 fn attach_tx_data(tx: &mut TransactionValue, network: &Network, query: &Arc<Query>) {
     for mut vin in tx.vin.iter_mut() {
         if !vin.is_coinbase {
-            let prevtx = get_tx(&query, &vin.outpoint.txid).unwrap();
-            let mut prevout = prevtx.vout[vin.outpoint.vout as usize].clone();
+            let prevtx = query.txindex_load_txn(&vin.outpoint.txid).unwrap();
+            let mut prevout = TxOutValue::from(prevtx.output[vin.outpoint.vout as usize].clone());
             prevout.scriptpubkey_address = script_to_address(&prevout.scriptpubkey_hex, &network);
             vin.prevout = Some(prevout);
         }
@@ -282,16 +280,12 @@ fn handle_request(req: Request<Body>, query: &Arc<Query>, cache: &Arc<Mutex<LruC
             let block_value = full_block_value_from_block(block.clone(), &query)?;  // TODO avoid clone
             let mut value = BlockAndTxsValue::from(block);
             value.block_summary = block_value;
-            for tx_value in value.txs.iter_mut() {
-                tx_value.confirmations = value.block_summary.confirmations;
-                tx_value.block_hash = Some(value.block_summary.id.clone());
-            }
             attach_txs_data(&mut value.txs, &network, &query);
             json_response(value)
         },
         (&Method::GET, Some(&"tx"), Some(hash), None) => {
             let hash = Sha256dHash::from_hex(hash)?;
-            let mut value = get_tx(&query, &hash)?;
+            let mut value = get_tx_with_blockhash(&query, &hash)?;
             attach_tx_data(&mut value, &network, &query);
             json_response(value)
         },
@@ -333,16 +327,11 @@ fn redirect(status: StatusCode, path: String) -> Response<Body> {
         .unwrap()
 }
 
-fn get_tx(query: &Arc<Query>, hash: &Sha256dHash) -> Result<TransactionValue, StringError> {
+fn get_tx_with_blockhash(query: &Arc<Query>, hash: &Sha256dHash) -> Result<TransactionValue, StringError> {
     let tx_value = query.get_transaction(&hash,true)?;
     let tx_hex = tx_value
         .get("hex").ok_or(StringError("hex not in tx json".to_string()))?
         .as_str().ok_or(StringError("hex not a string".to_string()))?;
-
-    let confirmations = match tx_value.get("confirmations") {
-        Some(confs) => Some(confs.as_u64().ok_or(StringError("confirmations not a u64".to_string()))? as u32),
-        None => None
-    };
 
     let blockhash = match tx_value.get("blockhash") {
         Some(hash) => Some(hash.as_str().ok_or(StringError("blockhash not a string".to_string()))?.to_string()),
@@ -352,8 +341,6 @@ fn get_tx(query: &Arc<Query>, hash: &Sha256dHash) -> Result<TransactionValue, St
     let tx : Transaction = deserialize(&hex::decode(tx_hex)? )?;
 
     let mut value = TransactionValue::from(tx);
-    value.confirmations = confirmations;
-    value.hex = Some(tx_hex.to_string());
     value.block_hash = blockhash;
 
     Ok(value)
