@@ -1,4 +1,4 @@
-use bitcoin::network::serialize::BitcoinHash;
+use bitcoin::network::serialize::{BitcoinHash, serialize};
 use bitcoin::util::hash::Sha256dHash;
 use std::collections::HashMap;
 use std::fmt;
@@ -7,7 +7,7 @@ use std::slice;
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
 use std::thread;
 use time;
-use block::SignetBlockHeader;
+use block::{SignetBlock, SignetBlockHeader};
 
 pub type Bytes = Vec<u8>;
 pub type HeaderMap = HashMap<Sha256dHash, SignetBlockHeader>;
@@ -26,6 +26,29 @@ pub fn hash_prefix(hash: &[u8]) -> HashPrefix {
 pub fn full_hash(hash: &[u8]) -> FullHash {
     array_ref![hash, 0, HASH_LEN].clone()
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct BlockMeta {
+    pub tx_count: u32,
+    pub size: u32,
+    pub weight: u32,
+}
+
+pub struct BlockHeaderMeta {
+    pub header_entry: HeaderEntry,
+    pub meta: BlockMeta,
+}
+
+impl<'a> From<&'a SignetBlock> for BlockMeta {
+    fn from(block: &'a SignetBlock) -> BlockMeta {
+        BlockMeta {
+            tx_count: block.txdata.len() as u32,
+            size: serialize(block).unwrap().len() as u32,
+            weight: block.txdata.iter().map(|tx| tx.get_weight() as u32).sum(),
+        }
+    }
+}
+
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct HeaderEntry {
