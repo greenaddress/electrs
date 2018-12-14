@@ -116,7 +116,7 @@ impl Config {
             "mainnet" => Network::Bitcoin,
             "testnet" => Network::Testnet,
             "regtest" => Network::Regtest,
-            "liquid" => Network::Liquid,
+            "liquidv1" => Network::Liquid,
             "liquidregtest" => Network::LiquidRegtest,
             _ => panic!("unsupported Bitcoin network: {:?}", network_name),
         };
@@ -127,7 +127,7 @@ impl Config {
             Network::Bitcoin => 8332,
             Network::Testnet => 18332,
             Network::Regtest => 18443,
-            Network::Liquid => 10099,
+            Network::Liquid => 7041,
             Network::LiquidRegtest => 7041,
         };
         let default_electrum_port = match network_type {
@@ -166,14 +166,14 @@ impl Config {
             .map(|p| PathBuf::from(p))
             .unwrap_or_else(|| {
                 let mut default_dir = home_dir().expect("no homedir");
-                default_dir.push(".bitcoin");
+                default_dir.push(".liquid");
                 default_dir
             });
         match network_type {
             Network::Bitcoin => (),
             Network::Testnet => daemon_dir.push("testnet3"),
             Network::Regtest => daemon_dir.push("regtest"),
-            Network::Liquid => daemon_dir.push("liquid"),
+            Network::Liquid => daemon_dir.push("liquidv1"),
             Network::LiquidRegtest => daemon_dir.push("liquidregtest"),
         }
         let cookie = m.value_of("cookie").map(|s| s.to_owned());
