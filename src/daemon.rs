@@ -369,7 +369,7 @@ impl Daemon {
             Network::Bitcoin => 0xD9B4BEF9,
             Network::Testnet => 0x0709110B,
             Network::Regtest => 0xDAB5BFFA,
-            Network::Liquid => 0xDBB5BFFA,
+            Network::Liquid => 0xDAB5BFFA,
             Network::LiquidRegtest => 0xDAB5BFFA,
         }
     }
