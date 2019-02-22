@@ -119,7 +119,7 @@ impl Config {
             Network::Bitcoin => 8332,
             Network::Testnet => 18332,
             Network::Regtest => 18443,
-            Network::Liquid => 10099,
+            Network::Liquid => 7041,
             Network::LiquidRegtest => 7041,
         };
         let default_electrum_port = match network_type {
