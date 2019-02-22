@@ -185,7 +185,7 @@ impl Config {
             Network::Bitcoin => (),
             Network::Testnet => daemon_dir.push("testnet3"),
             Network::Regtest => daemon_dir.push("regtest"),
-            Network::Liquid => daemon_dir.push("liquid"),
+            Network::Liquid => daemon_dir.push("liquidv1"),
             Network::LiquidRegtest => daemon_dir.push("liquidregtest"),
         }
         let cookie = m.value_of("cookie").map(|s| s.to_owned());
