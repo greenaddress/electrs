@@ -90,9 +90,13 @@ pub struct HeaderList {
 
 impl HeaderList {
     pub fn empty() -> HeaderList {
+        let mut map = HashMap::new();
+        // Insert the "pre-genesis" block
+        map.insert(Sha256dHash::default(), 0);
+
         HeaderList {
             headers: vec![],
-            heights: HashMap::new(),
+            heights: map,
         }
     }
 
@@ -147,6 +151,8 @@ impl HeaderList {
                 // First new header's height (may override existing headers)
                 height
             }
+            // None and we are at the genesis block
+            None if tip == Sha256dHash::default() => 0,
             // No new headers - chain's "tail" may be removed
             None => {
                 let tip_height = *self
