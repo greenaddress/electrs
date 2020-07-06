@@ -26,6 +26,9 @@ use {
         encode, AssetId,
     },
 };
+use std::fs;
+use std::path::{Path, PathBuf};
+use hyperlocal::UnixServerExt;
 
 use async_std::task;
 use serde::Serialize;
@@ -462,6 +465,7 @@ fn prepare_txs(
 #[tokio::main]
 async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receiver<()>) {
     let addr = &config.http_addr;
+    let socket_file = &config.http_socket_file;
 
     let config = Arc::clone(&config);
     let query = Arc::clone(&query);
@@ -518,6 +522,23 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
 
 pub fn start(config: Arc<Config>, query: Arc<Query>) -> Handle {
     let (tx, rx) = oneshot::channel::<()>();
+    let server = match socket_file {
+      None => {
+        info!("REST server running on {}", addr);
+        Server::bind(&addr)
+      },
+      Some(x) => {
+            let path = Path::new(x);
+            if path.exists() {
+                fs::remove_file(path);
+            }
+            info!("REST server running on {}", path.display());
+            Server::bind_unix(path)
+      },
+    };
+    server.serve(new_service)
+        .with_graceful_shutdown(rx)
+        .map_err(|e| eprintln!("server error: {}", e));
 
     Handle {
         tx,
