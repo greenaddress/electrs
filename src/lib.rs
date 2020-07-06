@@ -9,6 +9,7 @@ extern crate dirs;
 extern crate glob;
 extern crate hex;
 extern crate hyper;
+extern crate hyperlocal;
 extern crate itertools;
 extern crate libc;
 extern crate lru;

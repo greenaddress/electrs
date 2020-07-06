@@ -27,6 +27,9 @@ use {
         encode, AssetId,
     },
 };
+use std::fs;
+use std::path::{Path, PathBuf};
+use hyperlocal::UnixServerExt;
 
 use serde::Serialize;
 use serde_json;
@@ -463,7 +466,8 @@ type BoxFut = Box<dyn Future<Item = Response<Body>, Error = hyper::Error> + Send
 
 pub fn run_server(config: Arc<Config>, query: Arc<Query>) -> Handle {
     let addr = &config.http_addr;
-    info!("REST server running on {}", addr);
+
+    let socket_file = &config.http_socket_file;
 
     let config = Arc::new(config.clone());
 
@@ -497,8 +501,21 @@ pub fn run_server(config: Arc<Config>, query: Arc<Query>) -> Handle {
     };
 
     let (tx, rx) = oneshot::channel::<()>();
-    let server = Server::bind(&addr)
-        .serve(new_service)
+    let server = match socket_file {
+      None => {
+        info!("REST server running on {}", addr);
+        Server::bind(&addr)
+      },
+      Some(x) => {
+            let path = Path::new(x);
+            if path.exists() {
+                fs::remove_file(path);
+            }
+            info!("REST server running on {}", path.display());
+            Server::bind_unix(path)
+      },
+    };
+    server.serve(new_service)
         .with_graceful_shutdown(rx)
         .map_err(|e| eprintln!("server error: {}", e));
 
