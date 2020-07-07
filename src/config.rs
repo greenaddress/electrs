@@ -122,12 +122,6 @@ impl Config {
                     .takes_value(true),
             )
             .arg(
-                Arg::with_name("http_socket_file")
-                    .long("http-socket-file")
-                    .help("HTTP server 'unix socket file' to listen on (default disabled, enabling this disables the http server)")
-                    .takes_value(true),
-            )
-            .arg(
                 Arg::with_name("daemon_rpc_addr")
                     .long("daemon-rpc-addr")
                     .help("Bitcoin daemon JSONRPC 'addr:port' to connect (default: 127.0.0.1:8332 for mainnet, 127.0.0.1:18332 for testnet and 127.0.0.1:18443 for regtest)")
@@ -182,6 +176,14 @@ impl Config {
                     .long("electrum-banner")
                     .help("Welcome banner for the Electrum server, shown in the console to clients.")
                     .takes_value(true)
+            );
+
+        #[cfg(unix)]
+        let args = args.arg(
+                Arg::with_name("http_socket_file")
+                    .long("http-socket-file")
+                    .help("HTTP server 'unix socket file' to listen on (default disabled, enabling this disables the http server)")
+                    .takes_value(true),
             );
 
         #[cfg(feature = "liquid")]
