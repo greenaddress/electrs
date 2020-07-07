@@ -20,7 +20,6 @@ use tokio::sync::oneshot;
 
 use hyperlocal::UnixServerExt;
 use std::fs;
-use std::path::Path;
 #[cfg(feature = "liquid")]
 use {
     crate::elements::{peg::PegoutValue, IssuanceValue},
@@ -470,7 +469,7 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
     let config = Arc::clone(&config);
     let query = Arc::clone(&query);
 
-    let make_service = make_service_fn(move |_| {
+    let make_service_fn_inn = || {
         let query = Arc::clone(&query);
         let config = Arc::clone(&config);
 
@@ -501,36 +500,41 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
                 }
             }))
         }
-    });
+    };
 
     let server = match socket_file {
         None => {
             info!("REST server running on {}", addr);
+
             let socket = create_socket(&addr);
             socket.listen(511).expect("setting backlog failed");
+
             Server::from_tcp(socket.into_tcp_listener())
                 .expect("Server::from_tcp failed")
-                .serve(make_service)
+                .serve(make_service_fn(move |_| make_service_fn_inn()))
                 .with_graceful_shutdown(async {
                     rx.await.ok();
                 })
+                .await
         }
-        Some(x) => {
-            let path = Path::new(x);
+        Some(path) => {
             if path.exists() {
-                fs::remove_file(path);
+                fs::remove_file(path).ok();
             }
-            info!("REST server running on {}", path.display());
+
+            info!("REST server running on unix socket {}", path.display());
+
             Server::bind_unix(path)
                 .expect("Server::bind_unix failed")
-                .serve(make_service)
+                .serve(make_service_fn(move |_| make_service_fn_inn()))
                 .with_graceful_shutdown(async {
                     rx.await.ok();
                 })
+                .await
         }
     };
 
-    if let Err(e) = server.await {
+    if let Err(e) = server {
         eprintln!("server error: {}", e);
     }
 }
