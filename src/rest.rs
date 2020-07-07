@@ -27,7 +27,7 @@ use {
     },
 };
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use hyperlocal::UnixServerExt;
 
 use async_std::task;
@@ -503,17 +503,33 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
         }
     });
 
-    let socket = create_socket(&addr);
-    socket.listen(511).expect("setting backlog failed");
-
-    let server = Server::from_tcp(socket.into_tcp_listener())
-        .expect("Server::from_tcp failed")
+    let server = match socket_file {
+      None => {
+        info!("REST server running on {}", addr);
+        let socket = create_socket(&addr);
+        socket.listen(511).expect("setting backlog failed");
+        Server::from_tcp(socket.into_tcp_listener()).expect("Server::from_tcp failed")
         .serve(make_service)
         .with_graceful_shutdown(async {
             rx.await.ok();
-        });
+        })
+      },
+      Some(x) => {
+            let path = Path::new(x);
+            if path.exists() {
+                fs::remove_file(path);
+            }
+            info!("REST server running on {}", path.display());
+            Server::bind_unix(path).expect("Server::bind_unix failed")
+            .serve(make_service)
+            .with_graceful_shutdown(async {
+                rx.await.ok();
+            })
+      },
+    };
 
-    info!("REST server running on {}", addr);
+
+
 
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
@@ -522,23 +538,6 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
 
 pub fn start(config: Arc<Config>, query: Arc<Query>) -> Handle {
     let (tx, rx) = oneshot::channel::<()>();
-    let server = match socket_file {
-      None => {
-        info!("REST server running on {}", addr);
-        Server::bind(&addr)
-      },
-      Some(x) => {
-            let path = Path::new(x);
-            if path.exists() {
-                fs::remove_file(path);
-            }
-            info!("REST server running on {}", path.display());
-            Server::bind_unix(path)
-      },
-    };
-    server.serve(new_service)
-        .with_graceful_shutdown(rx)
-        .map_err(|e| eprintln!("server error: {}", e));
 
     Handle {
         tx,

@@ -124,8 +124,7 @@ impl Config {
             .arg(
                 Arg::with_name("http_socket_file")
                     .long("http-socket-file")
-                    .help("HTTP server 'unix socket file' to listen on (default: '/tmp/electrs_mainnet' for mainnet, '/tmp/electrs_testnet' for testnet and '/tmp/electrs_regtest' for regtest)")
-                    .help("Directory for liquid/elements asset db")
+                    .help("HTTP server 'unix socket file' to listen on (default disabled)")
                     .takes_value(true),
             )
             .arg(
