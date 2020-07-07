@@ -18,6 +18,9 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Response, Server, StatusCode};
 use tokio::sync::oneshot;
 
+use hyperlocal::UnixServerExt;
+use std::fs;
+use std::path::Path;
 #[cfg(feature = "liquid")]
 use {
     crate::elements::{peg::PegoutValue, IssuanceValue},
@@ -26,9 +29,6 @@ use {
         encode, AssetId,
     },
 };
-use std::fs;
-use std::path::{Path};
-use hyperlocal::UnixServerExt;
 
 use async_std::task;
 use serde::Serialize;
@@ -504,32 +504,31 @@ async fn run_server(config: Arc<Config>, query: Arc<Query>, rx: oneshot::Receive
     });
 
     let server = match socket_file {
-      None => {
-        info!("REST server running on {}", addr);
-        let socket = create_socket(&addr);
-        socket.listen(511).expect("setting backlog failed");
-        Server::from_tcp(socket.into_tcp_listener()).expect("Server::from_tcp failed")
-        .serve(make_service)
-        .with_graceful_shutdown(async {
-            rx.await.ok();
-        })
-      },
-      Some(x) => {
+        None => {
+            info!("REST server running on {}", addr);
+            let socket = create_socket(&addr);
+            socket.listen(511).expect("setting backlog failed");
+            Server::from_tcp(socket.into_tcp_listener())
+                .expect("Server::from_tcp failed")
+                .serve(make_service)
+                .with_graceful_shutdown(async {
+                    rx.await.ok();
+                })
+        }
+        Some(x) => {
             let path = Path::new(x);
             if path.exists() {
                 fs::remove_file(path);
             }
             info!("REST server running on {}", path.display());
-            Server::bind_unix(path).expect("Server::bind_unix failed")
-            .serve(make_service)
-            .with_graceful_shutdown(async {
-                rx.await.ok();
-            })
-      },
+            Server::bind_unix(path)
+                .expect("Server::bind_unix failed")
+                .serve(make_service)
+                .with_graceful_shutdown(async {
+                    rx.await.ok();
+                })
+        }
     };
-
-
-
 
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
